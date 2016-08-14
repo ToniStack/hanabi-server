@@ -15,7 +15,7 @@ import (
 
 type Models struct {
 	// Database tables
-	Achievements
+	//Achievements
 	BannedIPs
 	BannedUsers
 	ChatLogPM
@@ -23,7 +23,7 @@ type Models struct {
 	GameParticipants
 	Games
 	SquelchedUsers
-	UserAchievements
+	//UserAchievements
 	Users
 }
 
@@ -74,5 +74,5 @@ func GetModels(dbFile string) (*Models, error) {
 	}
 
 	// Create the model
-	return &Model{}, nil
+	return &Models{}, nil
 }

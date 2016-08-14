@@ -1,0 +1,68 @@
+{{define "content"}}
+
+<!-- The lobby screen -->
+<div id="lobby" class="container">
+	<br /><br />
+	<div class="jumbotron">
+		<p>Current games:</p>
+		<ul id="current-games"></ul>
+	</div>
+
+	<div class="jumbotron">
+		<p>
+			<a href="#create-game-modal" class="btn btn-primary" data-toggle="modal">Create a New Game</a>
+			|
+			<button type="button" id="past-games-button" class="btn btn-primary">View Past Games</button>
+			|
+			<a href="/logout"><button type="button" class="btn btn-default">Logout</button></a>
+		</p>
+	</div>
+</div>
+
+<!-- The main game canvas -->
+<div id="hanabi" style="display: none;">
+	<canvas id="hanabi-canvas" resize></canvas>
+</div>
+
+<!-- "Create a New Game" modal -->
+<div id="create-game-modal" class="modal fade">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title">Game Options</h4>
+			</div>
+			<div class="modal-body">
+				<div class="container">
+					<div class="row">
+						<div class="col-xs-3">
+							<div class="input-group">
+								<input type="text" id="game-name" class="form-control" placeholder="Game name" autofocus>
+							</div>
+						</div>
+						<div class="col-xs-4">
+							<div class="dropdown">
+								Ruleset:
+								<button class="btn btn-default dropdown-toggle" type="button" id="ruleset-dropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+									Normal &nbsp;<span class="caret"></span>
+								</button>
+								<ul class="dropdown-menu" aria-labelledby="dropdownMenu1">
+									<li><a href="#" id="ruleset-choose-normal">Normal</a></li>
+									<li><a href="#" id="ruleset-choose-black">Black</a></li>
+									<li><a href="#" id="ruleset-choose-rainbow">Rainbow</a></li>
+								</ul>
+							</div>
+						</div>
+					</div>
+				</div>			</div>
+			<div class="modal-footer">
+				<button type="button" id="create-game-button" class="btn btn-primary">Create</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Scripts -->
+<script src="/public/js/main.js"></script>
+
+{{end}}

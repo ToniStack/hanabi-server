@@ -1,11 +1,17 @@
-body { 
-  /*background: url(/public/img/background.jpg) no-repeat center center fixed;*/
-  -webkit-background-size: cover;
-  -moz-background-size: cover;
-  -o-background-size: cover;
-  background-size: cover;
+body {
+	background: url(/public/img/background.jpg) no-repeat center center fixed;
+	-webkit-background-size: cover;
+	   -moz-background-size: cover;
+	     -o-background-size: cover;
+	        background-size: cover;
 }
 
-#hanabiCanvas {
-  height: 100%;
+.form-control { /* This is necessary for some reason because it wants to default to flat corners */
+	-webkit-border-radius: 4px !important;
+	   -moz-border-radius: 4px !important;
+	        border-radius: 4px !important;
 }
+
+/*#hanabi-canvas {
+	height: 100%;
+}*/

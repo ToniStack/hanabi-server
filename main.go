@@ -29,13 +29,12 @@ import (
  */
 
 const (
-	port        = 443
 	sessionName = "hanabi.sid"
 	domain      = "hanabi.ddns.net"
 	auth0Domain = "isaacserver.auth0.com"
-	useSSL      = false
-	//sslCertFile = "/etc/letsencrypt/live/hanabi.ddns.net/fullchain.pem"
-	//sslKeyFile  = "/etc/letsencrypt/live/hanabi.ddns.net/privkey.pem"
+	useSSL      = true
+	sslCertFile = "/etc/letsencrypt/live/hanabi.ddns.net/fullchain.pem"
+	sslKeyFile  = "/etc/letsencrypt/live/hanabi.ddns.net/privkey.pem"
 )
 
 /*
@@ -58,7 +57,7 @@ var (
 		sync.RWMutex
 		m map[string][]User
 	}{m: make(map[string][]User)}
-	db           *model.Model
+	db           *models.Models
 	commandMutex = &sync.Mutex{} // Used to prevent race conditions
 )
 
@@ -84,30 +83,40 @@ func main() {
 	// Create a session store
 	sessionSecret := os.Getenv("SESSION_SECRET")
 	sessionStore = sessions.NewCookieStore([]byte(sessionSecret))
-	sessionStore.Options = &sessions.Options{
-		Domain:   domain,
-		Path:     "/",
-		MaxAge:   5,    // 5 seconds
-		Secure:   true, // Only send the cookie over HTTPS: https://www.owasp.org/index.php/Testing_for_cookies_attributes_(OTG-SESS-002)
-		HttpOnly: true, // Mitigate XSS attacks: https://www.owasp.org/index.php/HttpOnly
+	maxAge := 60 * 60 * 24 * 30 // 1 month
+	if useSSL == true {
+		sessionStore.Options = &sessions.Options{
+			Domain:   domain,
+			Path:     "/",
+			MaxAge:   maxAge,
+			Secure:   true, // Only send the cookie over HTTPS: https://www.owasp.org/index.php/Testing_for_cookies_attributes_(OTG-SESS-002)
+			HttpOnly: true, // Mitigate XSS attacks: https://www.owasp.org/index.php/HttpOnly
+		}
+	} else {
+		sessionStore.Options = &sessions.Options{
+			Domain:   domain,
+			Path:     "/",
+			MaxAge:   maxAge,
+			HttpOnly: true, // Mitigate XSS attacks: https://www.owasp.org/index.php/HttpOnly
+		}
 	}
 
 	// Initialize the database model
-	if db, err = model.GetModel(projectPath + "/database.sqlite"); err != nil {
+	if db, err = models.GetModels(projectPath + "/database.sqlite"); err != nil {
 		log.Fatal("Failed to open the database:", err)
 	}
 
-	// Clean up any non-started races before we start
-	if leftoverRaces, err := db.Races.Cleanup(); err != nil {
-		log.Fatal("Failed to cleanup the leftover races:", err)
+	// Clean up any non-started games before we start
+	if leftoverGames, err := db.Games.Cleanup(); err != nil {
+		log.Fatal("Failed to cleanup the leftover games:", err)
 	} else {
-		for _, raceID := range leftoverRaces {
-			log.Info("Deleted race", raceID, "during starting cleanup.")
+		for _, gameID := range leftoverGames {
+			log.Info("Deleted game", gameID, "during starting cleanup.")
 		}
 	}
 
 	// Initialize the achievements
-	achievementsInit()
+	//achievementsInit()
 
 	// Create a WebSocket router using the Golem framework
 	router := golem.NewRouter()
@@ -125,38 +134,27 @@ func main() {
 	router.On("roomLeave", roomLeave)
 	router.On("roomMessage", roomMessage)
 	router.On("privateMessage", privateMessage)
-	router.On("roomListAll", roomListAll)
 
-	// Race commands
-	router.On("raceCreate", raceCreate)
-	router.On("raceJoin", raceJoin)
-	router.On("raceLeave", raceLeave)
-	router.On("raceReady", raceReady)
-	router.On("raceUnready", raceUnready)
-	router.On("raceRuleset", raceRuleset)
-	router.On("raceFinish", raceFinish)
-	router.On("raceQuit", raceQuit)
-	router.On("raceComment", raceComment)
-	router.On("raceItem", raceItem)
-	router.On("raceFloor", raceFloor)
+	// Game commands
+	router.On("gameCreate", gameCreate)
+	/*router.On("gameJoin", gameJoin)
+	router.On("gameLeave", gameLeave)
+	router.On("gameRuleset", gameRuleset)
+	router.On("gameComment", gameComment)*/
 
 	// Profile commands
-	router.On("profileGet", profileGet)
-	router.On("profileSetUsername", profileSetUsername)
+	/*router.On("profileGet", profileGet)
+	router.On("profileSetUsername", profileSetUsername)*/
 
 	// Admin commands
-	router.On("adminBan", adminBan)
+	/*router.On("adminBan", adminBan)
 	router.On("adminUnban", adminUnban)
 	router.On("adminBanIP", adminBanIP)
 	router.On("adminUnbanIP", adminUnbanIP)
 	router.On("adminSquelch", adminSquelch)
 	router.On("adminUnsquelch", adminUnsquelch)
 	router.On("adminPromote", adminPromote)
-	router.On("adminDemote", adminDemote)
-
-	// Miscellaneous
-	router.On("logout", logout)
-	router.On("debug", debug)
+	router.On("adminDemote", adminDemote)*/
 
 	/*
 	 *  HTTP stuff
@@ -165,7 +163,7 @@ func main() {
 	// Minify CSS and JS
 	m := minify.New()
 	m.AddFunc("text/css", css.Minify)
-	for _, fileName := range []string{"main", "ie8"} {
+	for _, fileName := range []string{"main"} {
 		inputFile, _ := os.Open("public/css/" + fileName + ".css")
 		outputFile, _ := os.Create("public/css/" + fileName + ".min.css")
 		if err := m.Minify("text/css", outputFile, inputFile); err != nil {
@@ -173,7 +171,7 @@ func main() {
 		}
 	}
 	m.AddFunc("text/javascript", js.Minify)
-	for _, fileName := range []string{"main", "util"} {
+	for _, fileName := range []string{"login", "main"} {
 		inputFile, _ := os.Open("public/js/" + fileName + ".js")
 		outputFile, _ := os.Create("public/js/" + fileName + ".min.js")
 		if err := m.Minify("text/javascript", outputFile, inputFile); err != nil {
@@ -183,16 +181,25 @@ func main() {
 
 	// Assign functions to URIs
 	http.Handle("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir("public"))))            // Serve static files
-	http.HandleFunc("/", serveTemplate)                                                                   // Anything that is not a static file will match this
+	http.HandleFunc("/", httpHandler)                                                                     // Anything that is not a static file will match this
 	http.Handle("/login", tollbooth.LimitFuncHandler(tollbooth.NewLimiter(1, time.Second), loginHandler)) // Rate limit the login handler
-	http.HandleFunc("/ws", router.Handler())                                                              // The golem router handles websockets
+	http.HandleFunc("/logout", logoutHandler)
+	http.HandleFunc("/ws", router.Handler()) // The golem router handles websockets
 
 	/*
 	 *  Start the server
 	 */
 
+	// Figure out the port that we are using for the HTTP server
+	var port int
+	if useSSL == true {
+		port = 443
+	} else {
+		port = 80
+	}
+
 	// Welcome message
-	log.Info("Starting isaac-racing-server on port " + strconv.Itoa(port) + ".")
+	log.Info("Starting hanabi-server on port " + strconv.Itoa(port) + ".")
 
 	// Listen and serve
 	if useSSL == true {

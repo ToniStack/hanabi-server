@@ -1,4 +1,6 @@
-/* sqlite3 database.sqlite < install/database_schema.sql */
+/*
+ *  sqlite3 database.sqlite < install/database_schema.sql
+ */
 
 DROP TABLE IF EXISTS users;
 CREATE TABLE users (
@@ -15,15 +17,16 @@ CREATE UNIQUE INDEX users_index_username ON users (username COLLATE NOCASE);
 
 DROP TABLE IF EXISTS games;
 CREATE TABLE games (
-    id                       INTEGER               PRIMARY KEY  AUTOINCREMENT,
-    status                   TEXT                  DEFAULT "open", /* in progress, finished */
-    ruleset                  TEXT                  DEFAULT "normal", /* black, rainbow */
-    seed                     TEXT                  NOT NULL,
-    datetime_created         INTEGER               DEFAULT (strftime('%s', 'now')),
-    datetime_started         INTEGER               DEFAULT 0,
-    datetime_finished        INTEGER               DEFAULT 0,
-    created_by               INTEGER               NOT NULL,
-    FOREIGN KEY(created_by)  REFERENCES users(id)
+    id                    INTEGER               PRIMARY KEY  AUTOINCREMENT,
+    name                  TEXT                  DEFAULT "-",
+    status                TEXT                  DEFAULT "open", /* in progress, finished */
+    ruleset               TEXT                  DEFAULT "normal", /* black, rainbow */
+    seed                  INTEGER               DEFAULT 0,
+    datetime_created      INTEGER               DEFAULT (strftime('%s', 'now')),
+    datetime_started      INTEGER               DEFAULT 0,
+    datetime_finished     INTEGER               DEFAULT 0,
+    captain               INTEGER               NOT NULL,
+    FOREIGN KEY(captain)  REFERENCES users(id)
 );
 CREATE INDEX games_index_status ON games (status);
 CREATE INDEX games_index_datetime_finished ON games (datetime_finished);
@@ -58,7 +61,6 @@ CREATE INDEX game_activity_index_user_id ON game_activity (user_id);
 CREATE INDEX game_activity_index_game_id ON game_activity (game_id);
 CREATE INDEX game_activity_index_datetime_action ON game_activity (datetime_action);
 
-/*
 DROP TABLE IF EXISTS banned_users;
 CREATE TABLE banned_users (
     id                              INTEGER               PRIMARY KEY  AUTOINCREMENT,
@@ -138,4 +140,3 @@ CREATE TABLE user_achievements (
 );
 CREATE INDEX user_achievements_index_user_id ON user_achievements (user_id);
 CREATE INDEX user_achievements_index_achievement_id ON user_achievements (achievement_id);
-*/
