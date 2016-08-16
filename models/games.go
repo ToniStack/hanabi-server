@@ -5,6 +5,7 @@ package models
  */
 
 import (
+	"database/sql"
 	"strings"
 )
 
@@ -17,6 +18,19 @@ type Games struct{}
 /*
  *  games table functions
  */
+
+func (*Games) Exists(gameID int) (bool, error) {
+	// Find out if the requested game exists
+	var id int
+	err := db.QueryRow("SELECT id FROM games WHERE id = ?", gameID).Scan(&id)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	} else {
+		return true, nil
+	}
+}
 
 func (*Games) GetCurrentGames() ([]Game, error) {
 	// Get the current games
@@ -85,6 +99,19 @@ func (*Games) GetCurrentGames() ([]Game, error) {
 	return gameList, nil
 }
 
+func (*Games) GetRuleset(gameID int) (string, error) {
+	// Get the ruleset of the game
+	var ruleset string
+	err := db.QueryRow(`
+		SELECT ruleset FROM games WHERE id = ?
+	`, gameID).Scan(&ruleset)
+	if err != nil {
+		return "", err
+	}
+
+	return ruleset, nil
+}
+
 func (*Games) CheckName(name string) (bool, error) {
 	// Check to see if there are non-finished games with the same name
 	rows, err := db.Query("SELECT name FROM games WHERE status != 'finished'")
@@ -106,6 +133,68 @@ func (*Games) CheckName(name string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func (*Games) CheckStatus(gameID int, status string) (bool, error) {
+	// Check to see if the game is set to this status
+	var id int
+	err := db.QueryRow("SELECT id FROM games WHERE id = ? AND status = ?", gameID, status).Scan(&id)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	} else {
+		return true, nil
+	}
+}
+
+func (*Games) CheckCaptain(gameID int, captain int) (bool, error) {
+	// Check to see if this user is the captain of the game
+	var id int
+	err := db.QueryRow("SELECT id FROM games WHERE id = ? AND captain = ?", gameID, captain).Scan(&id)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	} else {
+		return true, nil
+	}
+}
+
+func (*Games) Start(gameID int) error {
+	// Change the status for this game to "in progress" and set "datetime_started" equal to now
+	stmt, err := db.Prepare(`
+		UPDATE games
+		SET status = 'in progress', datetime_started = (strftime('%s', 'now'))
+		WHERE id = ?
+	`)
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Exec(gameID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (*Games) Finish(gameID int) error {
+	// Change the status for this game to "finished" and set "datetime_finished" equal to now
+	stmt, err := db.Prepare(`
+		UPDATE games
+		SET status = 'finished', datetime_finished = (strftime('%s', 'now'))
+		WHERE id = ?
+	`)
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Exec(gameID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (*Games) Insert(name string, ruleset string, userID int) (int, error) {
@@ -133,7 +222,8 @@ func (*Games) Insert(name string, ruleset string, userID int) (int, error) {
 
 func (*Games) Cleanup() ([]int, error) {
 	// Get the current games
-	rows, err := db.Query("SELECT id FROM games WHERE status = 'open' ORDER BY id")
+	//rows, err := db.Query("SELECT id FROM games WHERE status = 'open' ORDER BY id")
+	rows, err := db.Query("SELECT id FROM games WHERE status = 'open' OR status = 'in progress' ORDER BY id") // TODO Remove this in production
 	if err != nil {
 		return nil, err
 	}

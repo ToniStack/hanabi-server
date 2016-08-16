@@ -5,10 +5,11 @@ package main
  */
 
 import (
-	"github.com/trevex/golem" // The Golem WebSocket framework
-	"net"                     // For splitting the IP address from the port
-	"net/http"                // For establishing an HTTP server
-	"time"                    // For rate limiting
+	"github.com/trevex/golem"
+	"net"
+	"net/http"
+	"strconv"
+	"time"
 )
 
 /*
@@ -76,22 +77,25 @@ func validateSession(w http.ResponseWriter, r *http.Request) bool {
 	if v, ok := session.Values["username"]; ok == true {
 		username = v.(string)
 	} else {
+		// Should never normally get here
 		commandMutex.Unlock()
-		log.Debug("Unauthorized WebSocket handshake detected from:", ip, "(failed username check)")
+		log.Error("Unauthorized WebSocket handshake detected from:", ip, "(failed username check)")
 		return false
 	}
 	if _, ok := session.Values["admin"]; ok == true {
 		// Do nothing
 	} else {
+		// Should never normally get here
 		commandMutex.Unlock()
-		log.Debug("Unauthorized WebSocket handshake detected from:", ip, "(failed admin check)")
+		log.Error("Unauthorized WebSocket handshake detected from:", ip, "(failed admin check)")
 		return false
 	}
 	if _, ok := session.Values["squelched"]; ok == true {
 		// Do nothing
 	} else {
+		// Should never normally get here
 		commandMutex.Unlock()
-		log.Debug("Unauthorized WebSocket handshake detected from:", ip, "(failed squelched check)")
+		log.Error("Unauthorized WebSocket handshake detected from:", ip, "(failed squelched check)")
 		return false
 	}
 
@@ -131,6 +135,7 @@ func validateSession(w http.ResponseWriter, r *http.Request) bool {
 func connOpen(conn *ExtendedConnection, r *http.Request) {
 	// Local variables
 	functionName := "connOpen"
+	var foundPlayer bool
 
 	// Lock the command mutex for the duration of the function to ensure synchronous execution
 	commandMutex.Lock()
@@ -216,6 +221,9 @@ func connOpen(conn *ExtendedConnection, r *http.Request) {
 	// Log the connection
 	log.Info("User \""+username+"\" connected;", len(connectionMap.m), "user(s) now connected.")
 
+	// Tell the user what their username is
+	conn.Connection.Emit("username", &UsernameMessage{username})
+
 	// Join the user to the global chat room
 	roomJoinSub(conn, "global")
 
@@ -231,8 +239,43 @@ func connOpen(conn *ExtendedConnection, r *http.Request) {
 		return
 	}
 
-	// Send it to the user
+	// Find out if the user is in any games that are currently going on (1/2)
+	// (We want to send the chat room stuff before the game stuff)
+	foundPlayer = false
+	for _, game := range gameList {
+		for _, player := range game.Players {
+			if player == username {
+				// Join the user to the chat room coresponding to this game
+				roomJoinSub(conn, "_game_"+strconv.Itoa(game.ID))
+
+				foundPlayer = true
+				break
+			}
+		}
+		if foundPlayer == true {
+			break
+		}
+	}
+
+	// Send the current list of games to the user
 	conn.Connection.Emit("gameList", gameList)
+
+	// Find out if the user is in any games that are currently going on (2/2)
+	foundPlayer = false
+	for _, game := range gameList {
+		for _, player := range game.Players {
+			if player == username {
+				// Send them the game state
+				gameSendState(conn, username, game.ID)
+
+				foundPlayer = true
+				break
+			}
+		}
+		if foundPlayer == true {
+			break
+		}
+	}
 
 	// The command is over, so unlock the command mutex
 	commandMutex.Unlock()
@@ -307,6 +350,11 @@ func connClose(conn *ExtendedConnection) {
 /*
  *  WebSocket miscellaneous subroutines
  */
+
+// Sent to the client if either their command was unsuccessful or something else went wrong
+func connAlert(conn *ExtendedConnection, functionName string, msg string) {
+	conn.Connection.Emit("alert", &ErrorMessage{functionName, msg})
+}
 
 // Sent to the client if either their command was unsuccessful or something else went wrong
 func connError(conn *ExtendedConnection, functionName string, msg string) {

@@ -3,25 +3,44 @@
 <!-- The lobby screen -->
 <div id="lobby" class="container">
 	<br /><br />
-	<div class="jumbotron">
-		<p>Current games:</p>
-		<ul id="current-games"></ul>
+
+	<div id="main-menu">
+		<div class="jumbotron">
+			<h2>Current Games</h2>
+			<br />
+			<ul id="current-games"></ul>
+		</div>
+
+		<div class="jumbotron">
+			<p>
+				<button type="button" class="btn btn-primary" data-toggle="modal" data-target="#create-game-modal">Create a New Game</button>
+				|
+				<button type="button" id="past-games-button" class="btn btn-primary">View Past Games</button>
+				|
+				<button type="button" class="btn btn-default" onclick="location.href='/logout';">Logout</button>
+			</p>
+		</div>
 	</div>
 
-	<div class="jumbotron">
+	<!-- The pregame section -->
+	<div id="pregame" class="jumbotron" style="display: none;">
+		<p>Game #<span id="pregame-id"></span></p>
+		<ul>
+			<li>
+				<strong>Ruleset:</strong> <span id="pregame-ruleset"></span>
+			</li>
+			<li>
+				<strong>Current players:</strong>
+				<ul id="pregame-current-players"></ul>
+			</li>
+		</ul>
+		<br />
 		<p>
-			<a href="#create-game-modal" class="btn btn-primary" data-toggle="modal">Create a New Game</a>
+			<button type="button" id="start-game" class="btn btn-primary">Start Game</button>
 			|
-			<button type="button" id="past-games-button" class="btn btn-primary">View Past Games</button>
-			|
-			<a href="/logout"><button type="button" class="btn btn-default">Logout</button></a>
+			<button type="button" id="leave-game" class="btn btn-primary">Leave Game</button>
 		</p>
 	</div>
-</div>
-
-<!-- The main game canvas -->
-<div id="hanabi" style="display: none;">
-	<canvas id="hanabi-canvas" resize></canvas>
 </div>
 
 <!-- "Create a New Game" modal -->
@@ -32,7 +51,7 @@
 				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
 				<h4 class="modal-title">Game Options</h4>
 			</div>
-			<div class="modal-body">
+			<div id="create-game-window" class="modal-body">
 				<div class="container">
 					<div class="row">
 						<div class="col-xs-3">
@@ -54,13 +73,22 @@
 							</div>
 						</div>
 					</div>
-				</div>			</div>
+				</div>
+			</div>
 			<div class="modal-footer">
 				<button type="button" id="create-game-button" class="btn btn-primary">Create</button>
 			</div>
 		</div>
 	</div>
 </div>
+
+<!-- The main game canvas -->
+<div id="hanabi" style="display: none;">
+	<canvas id="hanabi-canvas"></canvas>
+</div>
+
+<!-- Preloaded card images -->
+<div id="card-images" class="hidden"></div>
 
 <!-- Scripts -->
 <script src="/public/js/main.js"></script>

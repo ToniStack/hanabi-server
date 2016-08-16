@@ -42,6 +42,11 @@ type ErrorMessage struct {
 	Msg  string `json:"msg"`
 }
 
+// Sent upon connection to let the client know what their username is
+type UsernameMessage struct {
+	Name string `json:"name"`
+}
+
 /*
  *  Chat room data types
  */
@@ -120,24 +125,24 @@ type GameMessage struct {
 	Name string `json:"name"`
 }
 
-// Sent in the "gameSetRuleset" command (in the "gameRuleset" function)
-type GameSetRulesetMessage struct {
-	ID      int    `json:"id"`
-	Ruleset string `json:"ruleset"`
-}
-
 // Sent in the "gameSetStatus" command (in the "gameCheckStart" functions)
 type GameSetStatusMessage struct {
 	ID     int    `json:"id"`
 	Status string `json:"status"`
 }
 
+// Sent at the beginning of the game (or if joining a game late)
+type HandListMessage struct {
+	Name string `json:"name"`
+	Hand Hand   `json:"hand"`
+}
+
 // Sent to tell the client that they got a new achievement
-type AchievementMessage struct {
+/*type AchievementMessage struct {
 	ID          int    `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-}
+}*/
 
 /*
  *  Profile data types
@@ -146,4 +151,51 @@ type AchievementMessage struct {
 // Sent in the "profile" command (in the "getProfile" function)
 type Profile struct {
 	// TODO
+}
+
+/*
+ *  Card data types
+ */
+
+// Used to keep track of the state of the game server-side
+type GameState struct {
+	Turn        int
+	Deck        []Card
+	Hands       []Hand
+	PlayPile    []PlayCard
+	DiscardPile []PlayCard
+	Clues       []Clue
+	Strikes     int
+}
+type Card struct {
+	Color  string `json:"color"`
+	Number int    `json:"number"`
+}
+type PlayCard struct {
+	Card  Card   `json:"card"`
+	Clues []Clue `json:"clues"`
+}
+type Hand struct {
+	Name      string     `json:"name"`
+	PlayerNum int        `json:"playerNumber"`
+	Cards     []PlayCard `json:"cards"`
+}
+type Clue struct {
+	Turn   int    `json:"turn"`
+	From   string `json:"from"`
+	To     string `json:"to"`
+	Type   string `json:"type"`
+	Color  string `json:"color"`
+	Number int    `json:"number"`
+}
+
+// Send in the "gameState" command (in the "connOpen" function)
+type PlayerGameState struct {
+	Turn        int        `json:"turn"`
+	DeckLeft    int        `json:"deckLeft"`
+	Hands       []Hand     `json:"hands"`
+	PlayPile    []PlayCard `json:"playPile"`
+	DiscardPile []PlayCard `json:"discardPile"`
+	Clues       []Clue     `json:"clues"`
+	Strikes     int        `json:"strikes"`
 }

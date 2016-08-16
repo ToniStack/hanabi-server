@@ -12,6 +12,11 @@ body {
 	        border-radius: 4px !important;
 }
 
-/*#hanabi-canvas {
-	height: 100%;
-}*/
+.vertical-align {
+	display: flex;
+	align-items: center;
+}
+
+canvas {
+	display: block; /* To remove the scrollbars */
+}

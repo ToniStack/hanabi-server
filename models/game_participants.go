@@ -1,6 +1,14 @@
 package models
 
 /*
+ *  Imports
+ */
+
+import (
+	"database/sql"
+)
+
+/*
  *  Data types
  */
 
@@ -68,6 +76,50 @@ func (*GameParticipants) GetNotStartedGames(userID int) ([]int, error) {
 	}
 
 	return gameIDs, nil
+}
+
+func (*GameParticipants) GetPlayerList(gameID int) ([]string, error) {
+	// Get only the names of the people in this game
+	rows, err := db.Query(`
+		SELECT users.username
+		FROM game_participants
+			JOIN users ON users.id = game_participants.user_id
+		WHERE game_participants.game_id = ?
+		ORDER BY game_participants.id
+	`, gameID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var playerList []string
+	for rows.Next() {
+		var name string
+		err := rows.Scan(&name)
+		if err != nil {
+			return nil, err
+		}
+		playerList = append(playerList, name)
+	}
+
+	return playerList, nil
+}
+
+func (*GameParticipants) CheckInGame(userID int, gameID int) (bool, error) {
+	// Check to see if the user is in this game
+	var id int
+	err := db.QueryRow(`
+		SELECT id
+		FROM game_participants
+		WHERE user_id = ? AND game_id = ?
+	`, userID, gameID).Scan(&id)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	} else {
+		return true, nil
+	}
 }
 
 func (*GameParticipants) Insert(userID int, gameID int) error {
@@ -146,7 +198,7 @@ func (*GameParticipants) Delete(username string, gameID int) error {
 			// Change the captain to someone else
 			stmt, err := db.Prepare(`
 				UPDATE games
-				SET captain = (SELECT user_id from game_participants WHERE game_id = ? LIMIT 1)
+				SET captain = (SELECT user_id from game_participants WHERE game_id = ? ORDER BY id LIMIT 1)
 				WHERE id = ?
 			`)
 			if err != nil {

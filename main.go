@@ -57,6 +57,11 @@ var (
 		sync.RWMutex
 		m map[string][]User
 	}{m: make(map[string][]User)}
+	gameMap = struct {
+		// Maps are not safe for concurrent use: https://blog.golang.org/go-maps-in-action
+		sync.RWMutex
+		m map[int]*GameState
+	}{m: make(map[int]*GameState)}
 	db           *models.Models
 	commandMutex = &sync.Mutex{} // Used to prevent race conditions
 )
@@ -137,10 +142,9 @@ func main() {
 
 	// Game commands
 	router.On("gameCreate", gameCreate)
-	/*router.On("gameJoin", gameJoin)
+	router.On("gameJoin", gameJoin)
 	router.On("gameLeave", gameLeave)
-	router.On("gameRuleset", gameRuleset)
-	router.On("gameComment", gameComment)*/
+	router.On("gameStart", gameStart)
 
 	// Profile commands
 	/*router.On("profileGet", profileGet)
