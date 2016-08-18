@@ -95,8 +95,7 @@ func gameCreate(conn *ExtendedConnection, data *IncomingCommandMessage) {
 	}
 
 	// Send everyone a notification that a new game has been started
-	connectionMap.RLock()
-	for _, conn := range connectionMap.m {
+	for _, conn := range connectionMap {
 		conn.Connection.Emit("gameCreated", &models.Game{
 			ID:              gameID,
 			Name:            name,
@@ -107,7 +106,6 @@ func gameCreate(conn *ExtendedConnection, data *IncomingCommandMessage) {
 			Players:         []string{username},
 		})
 	}
-	connectionMap.RUnlock()
 
 	// Join the user to the channel for that game
 	roomJoinSub(conn, "_game_"+strconv.Itoa(gameID))
@@ -161,11 +159,9 @@ func gameJoin(conn *ExtendedConnection, data *IncomingCommandMessage) {
 	roomJoinSub(conn, "_game_"+strconv.Itoa(gameID))
 
 	// Send everyone a notification that the user joined
-	connectionMap.RLock()
-	for _, conn := range connectionMap.m {
+	for _, conn := range connectionMap {
 		conn.Connection.Emit("gameJoined", GameMessage{gameID, username})
 	}
-	connectionMap.RUnlock()
 
 	// The command is over, so unlock the command mutex
 	commandMutex.Unlock()
@@ -215,11 +211,9 @@ func gameLeave(conn *ExtendedConnection, data *IncomingCommandMessage) {
 	roomLeaveSub(conn, "_game_"+strconv.Itoa(gameID))
 
 	// Send everyone a notification that the user left the game
-	connectionMap.RLock()
-	for _, conn := range connectionMap.m {
+	for _, conn := range connectionMap {
 		conn.Connection.Emit("gameLeft", GameMessage{gameID, username})
 	}
-	connectionMap.RUnlock()
 
 	// The command is over, so unlock the command mutex
 	commandMutex.Unlock()
@@ -300,11 +294,9 @@ func gameStart(conn *ExtendedConnection, data *IncomingCommandMessage) {
 	}
 
 	// Send everyone a notification that the game is now in progress
-	connectionMap.RLock()
-	for _, conn := range connectionMap.m {
+	for _, conn := range connectionMap {
 		conn.Connection.Emit("gameSetStatus", &GameSetStatusMessage{gameID, "in progress"})
 	}
-	connectionMap.RUnlock()
 
 	// Get the ruleset for this game
 	ruleset, err := db.Games.GetRuleset(gameID)
@@ -349,6 +341,14 @@ func gameStart(conn *ExtendedConnection, data *IncomingCommandMessage) {
 	seed := int64(rand.Intn(100000))
 	log.Info("Seed chosen:", seed)
 
+	// Add the seed to the database
+	if err := db.Games.SetSeed(gameID, int(seed)); err != nil {
+		commandMutex.Unlock()
+		log.Error("Database error:", err)
+		connError(conn, functionName, "Something went wrong. Please contact an administrator.")
+		return
+	}
+
 	// Shuffle the deck based on this seed
 	// From: http://stackoverflow.com/questions/12264789/shuffle-array-in-go
 	r := rand.New(rand.NewSource(seed))
@@ -357,15 +357,6 @@ func gameStart(conn *ExtendedConnection, data *IncomingCommandMessage) {
 		deck[i], deck[j] = deck[j], deck[i]
 	}
 
-	// Set the seed in the database
-	// TODO
-	/*if err := db.Games.SetSeed(gameID); err != nil {
-		commandMutex.Unlock()
-		log.Error("Database error:", err)
-		connError(conn, functionName, "Something went wrong. Please contact an administrator.")
-		return
-	}*/
-
 	// Randomize the list of people
 	for i := range playerList {
 		j := rand.Intn(i + 1)
@@ -373,16 +364,29 @@ func gameStart(conn *ExtendedConnection, data *IncomingCommandMessage) {
 	}
 
 	// Initialize the game state
-	gameMap.Lock()
-	gameMap.m[gameID] = &GameState{
+	gameMap[gameID] = &GameState{
+		Ruleset:     ruleset,
 		Turn:        1,
-		PlayPile:    make([]PlayCard, 0),
+		PlayPile:    make(map[string]PlayCard),
 		DiscardPile: make([]PlayCard, 0),
-		Clues:       make([]Clue, 0),
+		Clues:       8,
 		Strikes:     0,
+		ClueHistory: make([]Clue, 0),
 	}
+
+	// Initialize the play pile part of the game state
+	for _, color := range []string{"blue", "green", "yellow", "red", "purple"} {
+		gameMap[gameID].PlayPile[color] = PlayCard{}
+	}
+	if ruleset == "black" {
+		gameMap[gameID].PlayPile["black"] = PlayCard{}
+	} else if ruleset == "rainbow" {
+		gameMap[gameID].PlayPile["rainbow"] = PlayCard{}
+	}
+
+	// Initialize the player hands part of the game state
 	for playerNum, player := range playerList {
-		gameMap.m[gameID].Hands = append(gameMap.m[gameID].Hands, Hand{
+		gameMap[gameID].Hands = append(gameMap[gameID].Hands, Hand{
 			Name:      player,
 			PlayerNum: playerNum + 1,
 		})
@@ -411,22 +415,19 @@ func gameStart(conn *ExtendedConnection, data *IncomingCommandMessage) {
 			deck = deck[1:]
 
 			// Add it to the player's hand
-			gameMap.m[gameID].Hands[j].Cards = append(gameMap.m[gameID].Hands[j].Cards, card)
+			gameMap[gameID].Hands[j].Cards = append(gameMap[gameID].Hands[j].Cards, card)
 		}
 	}
-	gameMap.m[gameID].Deck = deck
-	gameMap.Unlock()
+	gameMap[gameID].Deck = deck
 
 	// Send the players the game state
-	connectionMap.RLock()
 	for _, player := range playerList {
-		conn, ok := connectionMap.m[player]
+		conn, ok := connectionMap[player]
 		if ok == true { // Not all players may be online during a game
 			// Send them the game state
 			gameSendState(conn, player, gameID)
 		}
 	}
-	connectionMap.RUnlock()
 
 	// Log the game starting
 	log.Info("Game #" + strconv.Itoa(gameID) + " started.")
@@ -559,35 +560,34 @@ func gameValidateStatus(conn *ExtendedConnection, data *IncomingCommandMessage, 
 
 func gameSendState(conn *ExtendedConnection, username string, gameID int) {
 	// Compile the state of the game thusfar
-	gameState := &PlayerGameState{
-		Turn:        gameMap.m[gameID].Turn,
-		DeckLeft:    len(gameMap.m[gameID].Deck),
-		Hands:       gameMap.m[gameID].Hands,
-		PlayPile:    gameMap.m[gameID].PlayPile,
-		DiscardPile: gameMap.m[gameID].DiscardPile,
-		Clues:       gameMap.m[gameID].Clues,
-		Strikes:     gameMap.m[gameID].Strikes,
+	gameState := PlayerGameState{
+		Ruleset:     gameMap[gameID].Ruleset,
+		Turn:        gameMap[gameID].Turn,
+		DeckLeft:    len(gameMap[gameID].Deck),
+		Hands:       make([]Hand, len(gameMap[gameID].Hands)),
+		PlayPile:    gameMap[gameID].PlayPile,
+		DiscardPile: gameMap[gameID].DiscardPile,
+		Clues:       gameMap[gameID].Clues,
+		Strikes:     gameMap[gameID].Strikes,
+		ClueHistory: gameMap[gameID].ClueHistory,
 	}
 
-	// Don't show a player their own cards
-	for i, hand := range gameState.Hands {
-		log.Debug("hand.Name =", hand.Name, ", username = ", username)
-		if hand.Name == username {
-			log.Debug("scrubbing")
+	// Copy the hands by value instead of by reference (because we need to modify it)
+	copy(gameState.Hands, gameMap[gameID].Hands)
+	for i := range gameState.Hands {
+		// Since we need to modify a slice within a slice, we have to copy 2 levels deep
+		gameState.Hands[i].Cards = make([]PlayCard, len(gameState.Hands[i].Cards))
+		copy(gameState.Hands[i].Cards, gameMap[gameID].Hands[i].Cards)
+
+		// Modify the hand so that we don't show a player their own cards
+		if gameState.Hands[i].Name == username {
 			for j := range gameState.Hands[i].Cards {
 				gameState.Hands[i].Cards[j].Card.Color = "unknown"
 				gameState.Hands[i].Cards[j].Card.Number = 0
 			}
-
-			break
 		}
 	}
 
 	// Send the game state to the player
 	conn.Connection.Emit("gameState", gameState)
-
-	// Debug
-	for _, card := range gameMap.m[gameID].Deck {
-		log.Debug(card.Color, card.Number)
-	}
 }

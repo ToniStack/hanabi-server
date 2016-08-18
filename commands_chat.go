@@ -47,9 +47,7 @@ func roomJoin(conn *ExtendedConnection, data *IncomingCommandMessage) {
 	}
 
 	// Validate that they are not already in the room
-	chatRoomMap.RLock()
-	users, ok := chatRoomMap.m[room]
-	chatRoomMap.RUnlock()
+	users, ok := chatRoomMap[room]
 	if ok == true {
 		// The room exists (at least 1 person is in it)
 		userInRoom := false
@@ -108,9 +106,7 @@ func roomLeave(conn *ExtendedConnection, data *IncomingCommandMessage) {
 	}
 
 	// Validate that the room exists
-	chatRoomMap.RLock()
-	users, ok := chatRoomMap.m[room]
-	chatRoomMap.RUnlock()
+	users, ok := chatRoomMap[room]
 	if ok == false {
 		commandMutex.Unlock()
 		log.Warning("User \"" + username + "\" tried to leave an invalid room.")
@@ -185,9 +181,7 @@ func roomMessage(conn *ExtendedConnection, data *IncomingCommandMessage) {
 	}
 
 	// Validate that the room exists
-	chatRoomMap.RLock()
-	users, ok := chatRoomMap.m[room]
-	chatRoomMap.RUnlock()
+	users, ok := chatRoomMap[room]
 	if ok == false {
 		commandMutex.Unlock()
 		connError(conn, functionName, "That is not a valid room name.")
@@ -276,9 +270,7 @@ func privateMessage(conn *ExtendedConnection, data *IncomingCommandMessage) {
 	}
 
 	// Validate that the person is online
-	connectionMap.RLock()
-	_, ok := connectionMap.m[recipient]
-	connectionMap.RUnlock()
+	_, ok := connectionMap[recipient]
 	if ok == false {
 		commandMutex.Unlock()
 		log.Warning("User \"" + username + "\" tried to private message \"" + recipient + "\", who is offline.")
@@ -318,16 +310,13 @@ func roomJoinSub(conn *ExtendedConnection, room string) {
 	roomManager.Join(room, conn.Connection)
 
 	// Add the user to the chat room mapping
-	chatRoomMap.Lock()
 	userObject := User{username, admin, squelched}
-	chatRoomMap.m[room] = append(chatRoomMap.m[room], userObject)
-	users := chatRoomMap.m[room] // Save the list of users in the room for later
-	chatRoomMap.Unlock()
+	chatRoomMap[room] = append(chatRoomMap[room], userObject)
+	users := chatRoomMap[room] // Save the list of users in the room for later
 
 	// Give the user the list of everyone in the chat room and tell everyone else that someone is joining
-	connectionMap.RLock()
 	for _, user := range users {
-		userConnection, ok := connectionMap.m[user.Name]
+		userConnection, ok := connectionMap[user.Name]
 		if ok == true { // All users in the chat room should be technically be online but there could be a race condition
 			if user.Name == username {
 				// Give the user the list of everyone in the chat room
@@ -341,7 +330,6 @@ func roomJoinSub(conn *ExtendedConnection, room string) {
 			continue
 		}
 	}
-	connectionMap.RUnlock()
 
 	// Get the chat history for this channel
 	var roomHistoryList []models.RoomHistory
@@ -378,9 +366,7 @@ func roomLeaveSub(conn *ExtendedConnection, room string) {
 	roomManager.Leave(room, conn.Connection)
 
 	// Get the index of the user in the chat room mapping for this room
-	chatRoomMap.RLock()
-	users, ok := chatRoomMap.m[room]
-	chatRoomMap.RUnlock()
+	users, ok := chatRoomMap[room]
 	if ok == false {
 		log.Error("Failed to get the chat room map for room \"" + room + "\".")
 		return
@@ -398,15 +384,12 @@ func roomLeaveSub(conn *ExtendedConnection, room string) {
 	}
 
 	// Remove the user from the chat room mapping
-	chatRoomMap.Lock()
-	chatRoomMap.m[room] = append(users[:index], users[index+1:]...)
-	users = chatRoomMap.m[room]
-	chatRoomMap.Unlock()
+	chatRoomMap[room] = append(users[:index], users[index+1:]...)
+	users = chatRoomMap[room]
 
 	// Since the amount of people in the chat room changed, send everyone an update
-	connectionMap.RLock()
 	for _, user := range users {
-		userConnection, ok := connectionMap.m[user.Name] // This should always succeed, but there might be a race condition
+		userConnection, ok := connectionMap[user.Name] // This should always succeed, but there might be a race condition
 		if ok == true {
 			userConnection.Connection.Emit("roomLeft", &RoomLeftMessage{room, username})
 		} else {
@@ -414,7 +397,6 @@ func roomLeaveSub(conn *ExtendedConnection, room string) {
 			continue
 		}
 	}
-	connectionMap.RUnlock()
 
 	// Log the leave
 	log.Debug("User \"" + conn.Username + "\" left room: #" + room)

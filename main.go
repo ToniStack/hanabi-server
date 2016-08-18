@@ -47,23 +47,11 @@ var (
 	sessionStore  *sessions.CookieStore
 	roomManager   = golem.NewRoomManager()
 	pmManager     = golem.NewRoomManager()
-	connectionMap = struct {
-		// Maps are not safe for concurrent use: https://blog.golang.org/go-maps-in-action
-		sync.RWMutex
-		m map[string]*ExtendedConnection
-	}{m: make(map[string]*ExtendedConnection)}
-	chatRoomMap = struct {
-		// Maps are not safe for concurrent use: https://blog.golang.org/go-maps-in-action
-		sync.RWMutex
-		m map[string][]User
-	}{m: make(map[string][]User)}
-	gameMap = struct {
-		// Maps are not safe for concurrent use: https://blog.golang.org/go-maps-in-action
-		sync.RWMutex
-		m map[int]*GameState
-	}{m: make(map[int]*GameState)}
-	db           *models.Models
-	commandMutex = &sync.Mutex{} // Used to prevent race conditions
+	commandMutex  = &sync.Mutex{} // Used to prevent race conditions
+	connectionMap = make(map[string]*ExtendedConnection)
+	chatRoomMap   = make(map[string][]User)
+	gameMap       = make(map[int]*GameState)
+	db            *models.Models
 )
 
 /*
@@ -145,6 +133,11 @@ func main() {
 	router.On("gameJoin", gameJoin)
 	router.On("gameLeave", gameLeave)
 	router.On("gameStart", gameStart)
+
+	// Action commands
+	router.On("actionPlay", actionPlay)
+	router.On("actionClue", actionClue)
+	router.On("actionDiscard", actionDiscard)
 
 	// Profile commands
 	/*router.On("profileGet", profileGet)

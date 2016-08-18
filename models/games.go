@@ -161,6 +161,24 @@ func (*Games) CheckCaptain(gameID int, captain int) (bool, error) {
 	}
 }
 
+func (*Games) SetSeed(gameID int, seed int) error {
+	// Set the seed for this game
+	stmt, err := db.Prepare(`
+		UPDATE games
+		SET seed = ?
+		WHERE id = ?
+	`)
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Exec(seed, gameID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (*Games) Start(gameID int) error {
 	// Change the status for this game to "in progress" and set "datetime_started" equal to now
 	stmt, err := db.Prepare(`

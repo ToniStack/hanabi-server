@@ -25,7 +25,6 @@ var createGameOptions = {
 };
 var inPreGame = false; // Can be true or false
 var gameID = false; // Can be false or the ID of the game
-var gameNumPlayers;
 var gameState = {};
 
 /*
@@ -50,6 +49,8 @@ preload([
     'k1', 'k2', 'k3', 'k4', 'k5',
     'm1', 'm2', 'm3', 'm4', 'm5',
     'back',
+    'back-b', 'back-g', 'back-y', 'back-r', 'back-p',
+    'back-k', 'back-m',
 ]);
 
 // Dynamically resize the canvas to fill the browser window
@@ -172,7 +173,6 @@ socket.onmessage = function(event) {
                         lobbyDrawPregame();
                     } else if (currentGames[id].status === 'in progress') {
                         gameID = id;
-                        hanabiShow();
                     } else {
                         errorShow('Failed to parse the status of game #' + id + ': ' + currentGames[id].status);
                     }
@@ -270,7 +270,7 @@ socket.onmessage = function(event) {
         // Check to see if we are in this game
         if (data.id === gameID) {
             if (currentGames[data.id].status === 'in progress') {
-                hanabiShow();
+                // Do nothing; gameState will be given next and we will act on that
             } else if (currentGames[data.id].status === 'finished') {
                 gameID = false;
             } else {
@@ -285,8 +285,11 @@ socket.onmessage = function(event) {
 
     // gameState
     } else if (command === 'gameState') {
+        // We started a new game or disconnected, so reset/initialize the variable that represents the game state
         gameState = data;
-        console.log(gameState);
+
+        // Leave the lobby and show the Hanabi GUI
+        hanabiShow();
 
     /*
      *  Game action handlers
@@ -302,10 +305,6 @@ socket.onmessage = function(event) {
 
     // actionDiscard
     } else if (command === 'actionDiscard') {
-        // TODO
-
-    // actionHands
-    } else if (command === 'actionHands') {
         // TODO
 
     /*
@@ -518,15 +517,11 @@ function lobbyShow() {
 }
 
 /*
- *  Game functions
+ *  Hanabi functions
  */
 
 function hanabiShow() {
     console.log('Started game #' + gameID + '.');
-
-    // Reset the variables that represent the game state
-    gameNumPlayers = currentGames[gameID].players.length;
-    gameState = {};
 
     // Show the Hanabi GUI
     $('#pregame').fadeOut();
@@ -574,11 +569,121 @@ function hanabiResizeCanvas() {
 function hanabiDraw() {
     var win_w = canvas.width;
     var win_h = canvas.height;
+    var x, y, width, height, offset, radius;
+
+    var suits = ['b', 'g', 'y', 'r', 'p'];
+    if (gameState.ruleset == 'black') {
+        suits.push('k')
+    } else if (gameState.ruleset == 'rainbow') {
+        suits.push('m')
+    }
+
+    // Draw the color card backs
+    if (suits.length == 5) {
+        y = .05;
+        width = .075;
+        height = .189;
+         offset = 0;
+        radius = .006;
+    } else if (suits.length == 6) {
+        y = .04;
+        width = .06;
+        height = .151;
+        offset = .019;
+        radius = .004;
+    }
+    for (var i = 0; i < suits.length; i++) {
+        var image = document.getElementById('card-back-' + suits[i]);
+        context.drawImage(
+            image,
+            (.183 + (width + .015) * i) * win_w,
+            (.345 + offset) * win_h,
+            width * win_w,
+            height * win_h
+         );
+    }
+
+    // Find out what player number we are
+    var ourPlayerNum;
+    for (var i = 0; i < gameState.hands.length; i++) {
+        if (gameState.hands[i].name === username) {
+            ourPlayerNum = gameState.hands[i].playerNum - 1;
+            break;
+        }
+    }
+
+    // Draw all the hands
+    var hand_pos = {
+        2: [
+            { x: .19, y: .77, w: .42, h: .189, rot: 0 },
+            { x: .19, y: .01, w: .42, h: .189, rot: 0 }
+        ],
+        3: [
+            { x: .19, y: .77, w: .42, h: .189, rot: 0 },
+            { x: .01, y: .71, w: .41, h: .189, rot: -78 },
+            { x: .705, y: 0, w: .41, h: .189, rot: 78 }
+        ],
+        4: [
+            { x: .23, y: .77, w: .34, h: .189, rot: 0 },
+            { x: .015, y: .7, w: .34, h: .189, rot: -78 },
+            { x: .23, y: .01, w: .34, h: .189, rot: 0 },
+            { x: .715, y: .095, w: .34, h: .189, rot: 78 }
+        ],
+        5: [
+            { x: .23, y: .77, w: .34, h: .189, rot: 0 },
+            { x: .03, y: .77, w: .301, h: .18, rot: -90 },
+            { x: .025, y: .009, w: .34, h: .189, rot: 0 },
+            { x: .445, y: .009, w: .34, h: .189, rot: 0 },
+            { x: .77, y: .22, w: .301, h: .18, rot: 90 }
+        ]
+    };
+    var nump = gameState.hands.length;
+    for (var i = 0; i < nump; i++) {
+        var j = i - ourPlayerNum;
+
+        if (j < 0) {
+            j += nump;
+        }
+        console.log('j:', j);
+
+        var image = document.getElementById('card-back');
+        context.drawImage(
+            image,
+            hand_pos[nump][j].x * win_w,
+            hand_pos[nump][j].y * win_h,
+            hand_pos[nump][j].w * win_w,
+            hand_pos[nump][j].h * win_h
+        );
+
+        /*
+            rotationDeg: hand_pos[nump][j].rot,
+            align: "center",
+            reverse: j == 0
+        */
+
+    }
+
+    // Discard area
+    // TODO MAKE CLICKABLE
+    /*context.rect(
+        .8 * win_w,
+        .6 * win_h,
+        .2 * win_w,
+        .4 * win_h
+    );
+    context.stroke();*/
+
+    // Play area rectangle
+    // TODO MAKE CLICKABLE
+    /*context.rect(
+        .183 * win_w,
+        .3 * win_h,
+        .435 * win_w,
+        .189 * win_h
+    );*/
 
     // TODO asdf
 
-    var image = document.getElementById('card-back');
-    context.drawImage(image, 0, 0);
 }
 
 /*

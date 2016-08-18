@@ -20,6 +20,7 @@ type Models struct {
 	BannedUsers
 	ChatLogPM
 	ChatLog
+	GameActions
 	GameParticipants
 	Games
 	SquelchedUsers

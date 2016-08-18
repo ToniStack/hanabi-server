@@ -192,9 +192,7 @@ func connOpen(conn *ExtendedConnection, r *http.Request) {
 	conn.RateLimitLastCheck = time.Now()
 
 	// Disconnect any existing connections with this username
-	connectionMap.RLock()
-	existingConnection, ok := connectionMap.m[username]
-	connectionMap.RUnlock()
+	existingConnection, ok := connectionMap[username]
 	if ok == true {
 		log.Info("Closing existing connection for user \"" + username + "\".")
 		connError(existingConnection, "logout", "You have logged on from somewhere else, so I'll disconnect you here.")
@@ -203,23 +201,22 @@ func connOpen(conn *ExtendedConnection, r *http.Request) {
 		// Wait until the existing connection is terminated
 		commandMutex.Unlock()
 		for {
-			connectionMap.RLock()
-			_, ok := connectionMap.m[username]
-			connectionMap.RUnlock()
+			commandMutex.Lock()
+			_, ok := connectionMap[username]
+			commandMutex.Unlock()
 			if ok == false {
 				break
 			}
+			time.Sleep(100 * time.Millisecond)
 		}
 		commandMutex.Lock()
 	}
 
 	// Add the connection to a connection map so that we can keep track of all of the connections
-	connectionMap.Lock()
-	connectionMap.m[username] = conn
-	connectionMap.Unlock()
+	connectionMap[username] = conn
 
 	// Log the connection
-	log.Info("User \""+username+"\" connected;", len(connectionMap.m), "user(s) now connected.")
+	log.Info("User \""+username+"\" connected;", len(connectionMap), "user(s) now connected.")
 
 	// Tell the user what their username is
 	conn.Connection.Emit("username", &UsernameMessage{username})
@@ -290,14 +287,11 @@ func connClose(conn *ExtendedConnection) {
 	commandMutex.Lock()
 
 	// Delete the connection from the connection map
-	connectionMap.Lock()
-	delete(connectionMap.m, username) // This will do nothing if the entry doesn't exist
-	connectionMap.Unlock()
+	delete(connectionMap, username) // This will do nothing if the entry doesn't exist
 
 	// Make a list of all the chat rooms this person is in
 	var chatRoomList []string
-	chatRoomMap.RLock()
-	for room, users := range chatRoomMap.m {
+	for room, users := range chatRoomMap {
 		for _, user := range users {
 			if user.Name == username {
 				chatRoomList = append(chatRoomList, room)
@@ -305,7 +299,6 @@ func connClose(conn *ExtendedConnection) {
 			}
 		}
 	}
-	chatRoomMap.RUnlock()
 
 	// Leave all the chat rooms
 	for _, room := range chatRoomList {
@@ -333,15 +326,13 @@ func connClose(conn *ExtendedConnection) {
 		}
 
 		// Send everyone a notification that the user left the game
-		connectionMap.RLock()
-		for _, conn := range connectionMap.m {
+		for _, conn := range connectionMap {
 			conn.Connection.Emit("gameLeft", GameMessage{gameID, username})
 		}
-		connectionMap.RUnlock()
 	}
 
 	// Log the disconnection
-	log.Info("User \""+username+"\" disconnected;", len(connectionMap.m), "user(s) now connected.")
+	log.Info("User \""+username+"\" disconnected;", len(connectionMap), "user(s) now connected.")
 
 	// The command is over, so unlock the command mutex
 	commandMutex.Unlock()

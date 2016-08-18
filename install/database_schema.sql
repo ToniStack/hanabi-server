@@ -44,16 +44,15 @@ CREATE INDEX game_participants_index_user_id ON game_participants (user_id);
 CREATE INDEX game_participants_index_game_id ON game_participants (game_id);
 CREATE INDEX game_participants_index_datetime_joined ON game_participants (datetime_joined);
 
-DROP TABLE IF EXISTS game_activity;
-CREATE TABLE game_activity (
+DROP TABLE IF EXISTS game_actions;
+CREATE TABLE game_actions (
     id                    INTEGER               PRIMARY KEY  AUTOINCREMENT,
     user_id               INTEGER               NOT NULL,
     game_id               INTEGER               NOT NULL,
     datetime_action       INTEGER               DEFAULT (strftime('%s', 'now')),
     action_type           TEXT                  NOT NULL, /* play, clue, discard */
-    play_card             TEXT                  DEFAULT "-", /* B1, G1, Y1, R1, P1, M1, L1 */
-    clue_type             TEXT                  DEFAULT "-", /* B, G, Y, R, P, M, L, 1, 2, 3, 4, 5 */
-    discard_slot          INTEGER               DEFAULT 0,
+    slot                  INTEGER               DEFAULT 0,
+    clue_type             TEXT                  DEFAULT "-", /* B, G, Y, R, P, M, K, 1, 2, 3, 4, 5 */
     FOREIGN KEY(user_id)  REFERENCES users(id),
     FOREIGN KEY(game_id)  REFERENCES games(id)
 );
