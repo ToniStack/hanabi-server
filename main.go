@@ -214,7 +214,7 @@ func main() {
 			":"+strconv.Itoa(port),                     // Nothing before the colon implies 0.0.0.0
 			context.ClearHandler(http.DefaultServeMux), // We wrap with context.ClearHandler or else we will leak memory: http://www.gorillatoolkit.org/pkg/sessions
 		); err != nil {
-			log.Fatal("ListenAndServeTLS failed:", err)
+			log.Fatal("ListenAndServe failed:", err)
 		}
 	}
 }
