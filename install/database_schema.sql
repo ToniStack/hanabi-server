@@ -56,9 +56,9 @@ CREATE TABLE game_actions (
     FOREIGN KEY(user_id)  REFERENCES users(id),
     FOREIGN KEY(game_id)  REFERENCES games(id)
 );
-CREATE INDEX game_activity_index_user_id ON game_activity (user_id);
-CREATE INDEX game_activity_index_game_id ON game_activity (game_id);
-CREATE INDEX game_activity_index_datetime_action ON game_activity (datetime_action);
+CREATE INDEX game_actions_index_user_id ON game_actions (user_id);
+CREATE INDEX game_actions_index_game_id ON game_actions (game_id);
+CREATE INDEX game_actions_index_datetime_action ON game_actions (datetime_action);
 
 DROP TABLE IF EXISTS banned_users;
 CREATE TABLE banned_users (

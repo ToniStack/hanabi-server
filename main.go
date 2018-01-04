@@ -11,9 +11,8 @@ import (
 	"os"       // For logging and reading environment variables
 	"strconv"  // For converting the port number
 	"sync"     // For locking and unlocking the connection map
-	"time"     // For dealing with timestamps
-
-	"github.com/didip/tollbooth"     // For rate-limiting login requests
+	// For dealing with timestamps
+	// For rate-limiting login requests
 	"github.com/gorilla/context"     // For cookie sessions (1/2)
 	"github.com/gorilla/sessions"    // For cookie sessions (2/2)
 	"github.com/joho/godotenv"       // For reading environment variables that contain secrets
@@ -32,7 +31,7 @@ const (
 	sessionName = "hanabi.sid"
 	domain      = "hanabi.ddns.net"
 	auth0Domain = "isaacserver.auth0.com"
-	useSSL      = true
+	useSSL      = false
 	sslCertFile = "/etc/letsencrypt/live/hanabi.ddns.net/fullchain.pem"
 	sslKeyFile  = "/etc/letsencrypt/live/hanabi.ddns.net/privkey.pem"
 )
@@ -177,9 +176,9 @@ func main() {
 	}
 
 	// Assign functions to URIs
-	http.Handle("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir("public"))))            // Serve static files
-	http.HandleFunc("/", httpHandler)                                                                     // Anything that is not a static file will match this
-	http.Handle("/login", tollbooth.LimitFuncHandler(tollbooth.NewLimiter(1, time.Second), loginHandler)) // Rate limit the login handler
+	http.Handle("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir("public")))) // Serve static files
+	http.HandleFunc("/", httpHandler)                                                          // Anything that is not a static file will match this
+	http.HandleFunc("/login", loginHandler)
 	http.HandleFunc("/logout", logoutHandler)
 	http.HandleFunc("/ws", router.Handler()) // The golem router handles websockets
 
